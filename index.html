@@ -357,9 +357,9 @@
 
     const STORAGE_KEY = 'karelia_live_trails_state_v1';
     const defaultState = {
-      stamps: [],
+      stamps: ,
       routeIds: ['petrozavodsk-gastro', 'girvas-kivach', 'besov-nos'],
-      userSpots: [],
+      userSpots: ,
       lat: 61.7849,
       lng: 34.3469
     };
@@ -368,7 +368,7 @@
       return {
         stamps: defaultState.stamps.slice(),
         routeIds: defaultState.routeIds.slice(),
-        userSpots: [],
+        userSpots: ,
         lat: defaultState.lat,
         lng: defaultState.lng
       };
@@ -388,7 +388,7 @@
     let state = loadState();
     let activeCat = 'all';
     let addSpotMode = false;
-    let selectedSpot = SPOTS[0];
+    let selectedSpot = SPOTS;
     let map = null, markersLayer = null, routeLine = null, userSpotMarkersLayer = null;
     let camStream = null, ambientCtx = null, ambientOn = false;
 
@@ -417,11 +417,11 @@
       document.getElementById('coordLabel').textContent = `${state.lat.toFixed(4)}° N, ${state.lng.toFixed(4)}° E`;
       document.getElementById('stampCountPill').textContent = `${state.stamps.length}/${SPOTS.length}`;
       const pct = Math.round((state.stamps.length / SPOTS.length) * 100);
-      document.getElementById('passportProgress').style.width = `${pct}%`;
+      document.getElementById('passportProgress').style.width = `\${pct}%`;
       let rank = 'Разведчик озёр';
       if (state.stamps.length >= 8) rank = 'Хранитель северных троп';
       else if (state.stamps.length >= 4) rank = 'Следопыт Карелии';
-      document.getElementById('rankLabel').textContent = `Уровень: ${rank} · Штампов: ${state.stamps.length} из ${SPOTS.length}`;
+      document.getElementById('rankLabel').textContent = `Уровень: ${rank} · Штампов: ${state.stamps.length} из \${SPOTS.length}`;
       document.getElementById('stampsGrid').innerHTML = SPOTS.map((s) => {
         const has = state.stamps.indexOf(s.id) !== -1;
         return `<div class="stamp ${has ? 'unlocked' : ''}"><div style="font-weight:700;font-size:13px;">${has ? '✓ ' : '○ '}${s.name}</div><div class="muted">${has ? 'Штамп получен' : s.access}</div></div>`;
@@ -443,37 +443,29 @@
       if (s) openSpotSheet(s);
     };
 
-    function initMap() {
-      if (!window.L) {
-        renderFallbackList();
-        return;
+    function haversineKm(p1, p2) {
+      const R = 6371;
+      const dLat = (p2.lat - p1.lat) * Math.PI / 180;
+      const dLon = (p2.lng - p1.lng) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(p1.lat * Math.PI / 180) * Math.cos(p2.lat * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c;
+    }
+
+    function grantStamp(spotId) {
+      const spot = SPOTS.find((s) => s.id === spotId);
+      if (!spot) return showToast('Неизвестная локация');
+      if (state.stamps.includes(spotId)) return showToast('Штамп уже получен');
+      const me = { lat: state.lat, lng: state.lng };
+      const dist = haversineKm(me, spot);
+      if (dist > 15) {
+        return showToast(`Слишком далеко: \${Math.round(dist)} км (нужно ≤15 км)`);
       }
-      try {
-        map = L.map('map', { zoomControl: false }).setView([state.lat, state.lng], 7);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-          maxZoom: 18,
-          attribution: '&copy; OSM &copy; CARTO'
-        }).addTo(map);
-        markersLayer = L.layerGroup().addTo(map);
-        userSpotMarkersLayer = L.layerGroup().addTo(map);
-        routeLine = L.polyline([], { color: '#4fd1c5', weight: 3.5, dashArray: '6, 8' }).addTo(map);
-        map.on('click', (e) => {
-          if (!addSpotMode) return;
-          const name = prompt('Название полевой точки:');
-          if (!name || !name.trim()) return;
-          state.userSpots.push({ id: 'u_' + Date.now(), name: name.trim(), lat: Number(e.latlng.lat.toFixed(5)), lng: Number(e.latlng.lng.toFixed(5)), createdAt: new Date().toISOString().slice(0, 10) });
-          addSpotMode = false;
-          document.getElementById('btnAddSpotMode').classList.remove('primary');
-          saveState();
-          renderUserSpots();
-          showToast('Точка сохранена');
-        });
-        renderMarkers();
-        renderRouteOnMap();
-        renderUserSpots();
-      } catch (e) {
-        renderFallbackList();
-      }
+      state.stamps.push(spotId);
+      saveState();
+      showToast('Штамп получен!');
     }
 
     function renderMarkers() {
@@ -491,301 +483,164 @@
           fillOpacity: 0.85,
           weight: 2
         }).addTo(markersLayer);
-        m.bindTooltip(s.name, { direction: 'top' });
+        m.bindTooltip(`${s.name}<br><small>${s.access}</small>`, { permanent: false, direction: 'auto' });
         m.on('click', () => openSpotSheet(s));
       });
     }
 
-    function openSpotSheet(spot) {
-      selectedSpot = spot;
-      document.getElementById('sheetTitle').textContent = spot.name;
-      document.getElementById('sheetCoords').textContent = `${spot.lat.toFixed(4)}° N, ${spot.lng.toFixed(4)}° E`;
-      document.getElementById('sheetMeta').innerHTML = `<span class="tag">${spot.access}</span><span class="tag">${state.stamps.indexOf(spot.id) !== -1 ? 'Штамп есть' : 'Штамп не собран'}</span>`;
-      document.getElementById('sheetDesc').textContent = spot.legend;
-      document.getElementById('sheetAccess').textContent = `Подъезд: ${spot.parking}. Совет: ${spot.tip}`;
-      document.getElementById('spotSheet').classList.add('open');
-      if (map) map.panTo([spot.lat, spot.lng]);
-    }
-
-    function grantStamp(spotId) {
-      if (state.stamps.indexOf(spotId) === -1) {
-        state.stamps.push(spotId);
-        saveState();
-        renderMarkers();
-        if (selectedSpot && selectedSpot.id === spotId) openSpotSheet(selectedSpot);
-        showToast('Штамп добавлен!');
-      } else {
-        showToast('Штамп уже получен');
-      }
-    }
-
-    function haversineKm(a, b) {
-      const R = 6371;
-      const dLat = ((b.lat - a.lat) * Math.PI) / 180;
-      const dLng = ((b.lng - a.lng) * Math.PI) / 180;
-      const x = Math.sin(dLat / 2) ** 2 + Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-      return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
-    }
-
-    function renderRouteOnMap() {
-      const pts = state.routeIds.map((id) => SPOTS.find((s) => s.id === id)).filter(Boolean);
-      if (routeLine) routeLine.setLatLngs(pts.map((p) => [p.lat, p.lng]));
-      let dist = 0;
-      for (let i = 1; i < pts.length; i++) dist += haversineKm(pts[i - 1], pts[i]) * 1.25;
-      const pace = document.getElementById('paceSelect').value;
-      const speed = pace === 'walk' ? 4.5 : pace === 'kayak' ? 12 : 38;
-      const hours = dist > 0 ? (dist / speed + pts.length * 1.2).toFixed(1) : '0.0';
-      document.getElementById('routeStats').textContent = `Точек: ${pts.length} · Дистанция: ~${Math.round(dist)} км · Время: ~${hours} ч`;
-      document.getElementById('routeStopsList').innerHTML = pts.length ? pts.map((p, i) => `${i + 1}. <strong>${p.name}</strong> (${p.access})`).join('<br>') : 'Добавь точки с карты или нажми «Авто-подбор».';
-    }
-
     function renderUserSpots() {
-      if (userSpotMarkersLayer) userSpotMarkersLayer.clearLayers();
-      document.getElementById('userSpotsCount').textContent = state.userSpots.length;
-      const el = document.getElementById('userSpotsList');
-      if (!state.userSpots.length) { el.textContent = 'Пока нет личных меток.'; return; }
-      el.innerHTML = state.userSpots.map((u) => {
-        if (userSpotMarkersLayer) L.circleMarker([u.lat, u.lng], { radius: 7, color: '#f6ad55', fillColor: '#f6ad55', fillOpacity: 0.85 }).bindTooltip(u.name).addTo(userSpotMarkersLayer);
-        return `• <strong>${u.name}</strong> — ${u.lat}, ${u.lng}`;
-      }).join('<br>');
-    }
-
-    async function cacheKareliaTiles() {
-      if (!('caches' in window)) return showToast('Cache API недоступен');
-      const banner = document.getElementById('cacheBanner');
-      const fill = document.getElementById('cacheFill');
-      const statusText = document.getElementById('cacheStatusText');
-      const pctText = document.getElementById('cachePctText');
-      banner.classList.add('show');
-      const urls = [];
-      const lon2tile = (lon, z) => Math.floor(((lon + 180) / 360) * Math.pow(2, z));
-      const lat2tile = (lat, z) => Math.floor(((1 - Math.log(Math.tan((lat * Math.PI) / 180) + 1 / Math.cos((lat * Math.PI) / 180)) / Math.PI) / 2) * Math.pow(2, z));
-      [7, 8].forEach((z) => {
-        for (let x = lon2tile(29.8, z); x <= lon2tile(36.2, z); x++) {
-          for (let y = lat2tile(66.6, z); y <= lat2tile(60.5, z); y++) {
-            const sub = ['a', 'b', 'c'][(x + y) % 3];
-            urls.push(`https://${sub}.basemaps.cartocdn.com/dark_all/${z}/${x}/${y}.png`);
-          }
-        }
-      });
-      const cache = await caches.open('karelia-map-tiles-v1');
-      for (let i = 0; i < urls.length; i++) {
-        try { const r = await fetch(urls[i]); if (r.ok) await cache.put(urls[i], r); } catch (e) {}
-        const pct = Math.round(((i + 1) / urls.length) * 100);
-        fill.style.width = `${pct}%`; pctText.textContent = `${pct}%`; statusText.textContent = `Кэш: ${i + 1}/${urls.length}`;
-      }
-      showToast('Регион закэширован');
-    }
-
-    function downloadFile(filename, content, mime) {
-      try {
-        const blob = new Blob([content], { type: mime });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = filename;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(a.href), 1500);
-      } catch (e) { showToast('Скачивание недоступно'); }
-    }
-
-    function exportGpx() {
-      const pts = state.routeIds.map((id) => SPOTS.find((s) => s.id === id)).filter(Boolean);
-      const trkPts = pts.map((p) => `      <trkpt lat="${p.lat}" lon="${p.lng}"><name>${p.name}</name></trkpt>`).join('\n');
-      const gpx = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1"><trk><name>Karelia</name><trkseg>\n${trkPts}\n</trkseg></trk></gpx>`;
-      downloadFile('karelia-route.gpx', gpx, 'application/gpx+xml');
-    }
-
-    function exportGeoJson() {
-      const pts = state.routeIds.map((id) => SPOTS.find((s) => s.id === id)).filter(Boolean);
-      const features = pts.map((p) => ({ type: 'Feature', properties: { name: p.name }, geometry: { type: 'Point', coordinates: [p.lng, p.lat] } }));
-      downloadFile('karelia-route.geojson', JSON.stringify({ type: 'FeatureCollection', features }, null, 2), 'application/geo+json');
-    }
-
-    function syncArSpot(id) {
-      const spot = SPOTS.find((s) => s.id === id) || SPOTS[0];
-      document.getElementById('arSpotSelect').value = spot.id;
-      document.getElementById('arGlyphs').textContent = spot.glyphs;
-      document.getElementById('arLegendTitle').textContent = spot.legendTitle;
-      document.getElementById('arLegendText').textContent = spot.legend;
-      updateCompassHint();
-    }
-
-    function updateCompassHint() {
-      const az = Number(document.getElementById('azimuthSlider').value || 0);
-      document.getElementById('azimuthVal').textContent = `${az}°`;
-      const spot = SPOTS.find((s) => s.id === document.getElementById('arSpotSelect').value) || SPOTS[0];
-      const bearing = Math.round(((Math.atan2(spot.lng - state.lng, spot.lat - state.lat) * 180) / Math.PI + 360) % 360);
-      const diff = Math.round(((bearing - az + 540) % 360) - 180);
-      document.getElementById('bearingHint').textContent = Math.abs(diff) < 15 ? `По курсу (${bearing}°)` : `Поверни ${diff > 0 ? 'вправо' : 'влево'} на ${Math.abs(diff)}°`;
-    }
-
-    function toggleVoice() {
-      if (!('speechSynthesis' in window)) return showToast('Озвучка недоступна');
-      if (window.speechSynthesis.speaking) {
-        window.speechSynthesis.cancel();
-        document.getElementById('audioWave').classList.remove('playing');
-        document.getElementById('audioStatus').textContent = 'Остановлено';
+      if (!userSpotMarkersLayer) return;
+      userSpotMarkersLayer.clearLayers();
+      const listEl = document.getElementById('userSpotsList');
+      const countEl = document.getElementById('userSpotsCount');
+      if (!listEl || !countEl) return;
+      countEl.textContent = state.userSpots.length;
+      if (state.userSpots.length === 0) {
+        listEl.textContent = 'Пока нет личных меток.';
         return;
       }
-      const spot = SPOTS.find((s) => s.id === document.getElementById('arSpotSelect').value) || SPOTS[0];
-      const u = new SpeechSynthesisUtterance(`${spot.name}. ${spot.legend}`);
-      u.lang = 'ru-RU';
-      u.onstart = () => { document.getElementById('audioWave').classList.add('playing'); document.getElementById('audioStatus').textContent = 'Читает гид...'; };
-      u.onend = () => { document.getElementById('audioWave').classList.remove('playing'); document.getElementById('audioStatus').textContent = 'Готово'; };
-      window.speechSynthesis.speak(u);
+      listEl.innerHTML = state.userSpots.map((u) =>
+        `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;">
+          <div>
+            <strong>\${u.name}</strong><br>
+            <small>${u.lat}, ${u.lng}</small>
+          </div>
+          <button class="btn small" onclick="window.__delUserSpot('\${u.id}')">✕</button>
+        </div>`
+      ).join('');
+      state.userSpots.forEach((u) => {
+        L.marker([u.lat, u.lng], { icon: L.divIcon({ html: '<div style="width:14px;height:14px;background:#f6ad55;border-radius:50%;border:1px solid #fff;box-shadow:0 0 0 2px rgba(246,173,85,0.4)"></div>', className: 'custom-marker', iconSize: [14,14] }) }).addTo(userSpotMarkersLayer);
+      });
     }
 
-    function toggleAmbient() {
-      if (!ambientOn) {
-        const Ctx = window.AudioContext || window.webkitAudioContext;
-        if (!Ctx) return showToast('Аудио недоступно');
-        ambientCtx = new Ctx();
-        const buf = ambientCtx.createBuffer(1, ambientCtx.sampleRate * 2, ambientCtx.sampleRate);
-        const data = buf.getChannelData(0);
-        let last = 0;
-        for (let i = 0; i < data.length; i++) { data[i] = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02; last = data[i]; data[i] *= 1.8; }
-        const src = ambientCtx.createBufferSource(); src.buffer = buf; src.loop = true;
-        const flt = ambientCtx.createBiquadFilter(); flt.type = 'lowpass'; flt.frequency.value = 340;
-        const gain = ambientCtx.createGain(); gain.gain.value = 0.14;
-        src.connect(flt); flt.connect(gain); gain.connect(ambientCtx.destination); src.start();
-        ambientOn = true; showToast('Шум волн и ветра включён');
-      } else {
-        if (ambientCtx) ambientCtx.close();
-        ambientCtx = null; ambientOn = false; showToast('Звук выключен');
+    window.__delUserSpot = function(id) {
+      state.userSpots = state.userSpots.filter((u) => u.id !== id);
+      saveState();
+      renderUserSpots();
+      showToast('Точка удалена');
+    };
+
+    function renderRouteOnMap() {
+      if (!routeLine || !map) return;
+      routeLine.setLatLngs(state.routeIds.map((id) => {
+        const s = SPOTS.find((item) => item.id === id);
+        return s ? [s.lat, s.lng] : null;
+      }).filter(Boolean));
+      const stats = document.getElementById('routeStats');
+      const list = document.getElementById('routeStopsList');
+      if (!stats || !list) return;
+      const points = state.routeIds.map((id) => SPOTS.find((s) => s.id === id)).filter(Boolean);
+      let dist = 0;
+      for (let i = 1; i < points.length; i++) {
+        dist += haversineKm(points[i-1], points[i]);
+      }
+      const pace = document.getElementById('paceSelect').value;
+      const speedMap = { walk: 4.5, suv: 38, kayak: 12 };
+      const speed = speedMap[pace] || 10;
+      const timeH = dist / speed;
+      stats.textContent = `Точек: ${points.length} · Дистанция: ${dist.toFixed(1)} км · Время: \${timeH.toFixed(1)} ч`;
+      list.innerHTML = points.map((p, i) => `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><span>${i+1}. ${p.name}</span><button class="btn small" onclick="window.__removeRoutePoint('\${p.id}')">✕</button></div>`).join('<br>');
+    }
+
+    window.__removeRoutePoint = function(id) {
+      state.routeIds = state.routeIds.filter((i) => i !== id);
+      saveState();
+      renderRouteOnMap();
+      renderMarkers();
+    };
+
+    function openSpotSheet(spot) {
+      selectedSpot = spot;
+      const sheet = document.getElementById('spotSheet');
+      document.getElementById('sheetTitle').textContent = spot.name;
+      document.getElementById('sheetCoords').textContent = `${spot.lat.toFixed(4)}° N, ${spot.lng.toFixed(4)}° E`;
+      document.getElementById('sheetMeta').innerHTML = `<span class="tag">${spot.cat}</span> · ${spot.access}`;
+      document.getElementById('sheetDesc').textContent = spot.legend;
+      document.getElementById('sheetAccess').textContent = `Парковка: \${spot.parking}`;
+      sheet.classList.add('open');
+    }
+
+    function initMap() {
+      if (!window.L) {
+        renderFallbackList();
+        return;
+      }
+      try {
+        map = L.map('map', { zoomControl: false }).setView([state.lat, state.lng], 7);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+          subdomains: ['a','b','c','d'],
+          maxZoom: 18,
+          attribution: '&copy; OSM &copy; CARTO'
+        }).addTo(map);
+        markersLayer = L.layerGroup().addTo(map);
+        userSpotMarkersLayer = L.layerGroup().addTo(map);
+        routeLine = L.polyline(, { color: '#4fd1c5', weight: 3.5, dashArray: '6, 8' }).addTo(map);
+        map.on('click', (e) => {
+          if (!addSpotMode) return;
+          const name = prompt('Название полевой точки:');
+          if (!name || !name.trim()) {
+            addSpotMode = false;
+            document.getElementById('btnAddSpotMode').classList.remove('primary');
+            return;
+          }
+          state.userSpots.push({ id: 'u_' + Date.now(), name: name.trim(), lat: Number(e.latlng.lat.toFixed(5)), lng: Number(e.latlng.lng.toFixed(5)), createdAt: new Date().toISOString().slice(0, 10) });
+          addSpotMode = false;
+          document.getElementById('btnAddSpotMode').classList.remove('primary');
+          saveState();
+          renderUserSpots();
+          showToast('Точка сохранена');
+        });
+        renderMarkers();
+        renderRouteOnMap();
+        renderUserSpots();
+      } catch (e) {
+        renderFallbackList();
       }
     }
 
-    async function toggleCamera() {
-      const video = document.getElementById('arVideo');
-      if (camStream) { camStream.getTracks().forEach((t) => t.stop()); camStream = null; video.srcObject = null; return showToast('Камера выключена'); }
-      try {
-        camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
-        video.srcObject = camStream; showToast('Камера AR активна');
-      } catch (e) { showToast('Камера недоступна'); }
+    function cacheRegionTiles(zoom = 12, latMin = 60, latMax = 67, lngMin = 29, lngMax = 37) {
+      const banner = document.getElementById('cacheBanner');
+      const status = document.getElementById('cacheStatusText');
+      const pctEl = document.getElementById('cachePctText');
+      const fill = document.getElementById('cacheFill');
+      banner.classList.add('show');
+      status.textContent = 'Кэширование тайлов...';
+      const tiles = ;
+      for (let lat = latMin; lat < latMax; lat++) {
+        for (let lng = lngMin; lng < lngMax; lng++) {
+          tiles.push([lat, lng]);
+        }
+      }
+      let done = 0;
+      const total = tiles.length;
+      tiles.forEach(([lat, lng]) => {
+        const url = `https://a.basemaps.cartocdn.com/dark_all/${zoom}/${lng}/\${lat}.png`;
+        fetch(url).then(r => r.blob()).then(() => {
+          done++;
+          const pct = Math.round((done / total) * 100);
+          fill.style.width = `\${pct}%`;
+          pctEl.textContent = `\${pct}%`;
+          if (done === total) {
+            banner.classList.remove('show');
+            showToast('Кэш региона сохранён');
+          }
+        }).catch(() => {
+          done++;
+          const pct = Math.round((done / total) * 100);
+          fill.style.width = `\${pct}%`;
+          pctEl.textContent = `\${pct}%`;
+          if (done === total) {
+            banner.classList.remove('show');
+            showToast('Кэш региона частично сохранён');
+          }
+        });
+      });
     }
 
-    function renderPostcard() {
-      const spot = SPOTS.find((s) => s.id === document.getElementById('cardSpotSelect').value) || SPOTS[0];
+    function renderCard() {
       const canvas = document.getElementById('postcardCanvas');
       const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#0d2621'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.strokeStyle = 'rgba(79, 209, 197, 0.35)'; ctx.lineWidth = 3; ctx.strokeRect(24, 24, canvas.width - 48, canvas.height - 48);
-      ctx.fillStyle = '#4fd1c5'; ctx.font = 'bold 20px sans-serif'; ctx.fillText('КАРЕЛИЯ: ЖИВЫЕ ТРОПЫ', 54, 74);
-      ctx.fillStyle = '#eef7f4'; ctx.font = 'bold 34px sans-serif'; ctx.fillText(spot.name, 54, 145);
-      ctx.fillStyle = '#98b4ad'; ctx.font = '20px sans-serif'; ctx.fillText(`${spot.lat.toFixed(4)}° N, ${spot.lng.toFixed(4)}° E`, 54, 188);
-      ctx.fillStyle = '#d9fff9'; ctx.font = '28px sans-serif'; ctx.fillText(`Знаки: ${spot.glyphs}`, 54, 255);
-    }
-
-    function setupEvents() {
-      document.querySelectorAll('.nav-btn').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const target = btn.getAttribute('data-view');
-          document.querySelectorAll('.nav-btn').forEach((b) => b.classList.remove('active'));
-          btn.classList.add('active');
-          document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'));
-          document.getElementById('view-' + target).classList.add('active');
-          if (target === 'map' && map) setTimeout(() => map.invalidateSize(), 120);
-          if (target === 'card') renderPostcard();
-        });
-      });
-
-      document.querySelectorAll('#categoryChips .chip').forEach((chip) => {
-        chip.addEventListener('click', () => {
-          document.querySelectorAll('#categoryChips .chip').forEach((c) => c.classList.remove('active'));
-          chip.classList.add('active');
-          activeCat = chip.getAttribute('data-cat');
-          renderMarkers();
-        });
-      });
-
-      document.getElementById('btnLocate').addEventListener('click', () => {
-        if (!navigator.geolocation) return showToast('GPS недоступен');
-        navigator.geolocation.getCurrentPosition((pos) => {
-          state.lat = pos.coords.latitude; state.lng = pos.coords.longitude; saveState();
-          if (map) map.setView([state.lat, state.lng], 10);
-          updateCompassHint(); showToast('Геопозиция обновлена');
-        }, () => showToast('Нет доступа к GPS'), { enableHighAccuracy: true });
-      });
-
-      document.getElementById('btnTeleport').addEventListener('click', () => {
-        state.lat = 61.7891; state.lng = 34.3712; saveState();
-        if (map) map.setView([state.lat, state.lng], 8);
-        updateCompassHint(); showToast('Петрозаводск');
-      });
-
-      document.getElementById('btnCacheRegion').addEventListener('click', cacheKareliaTiles);
-      document.getElementById('btnAddSpotMode').addEventListener('click', (e) => {
-        addSpotMode = !addSpotMode;
-        e.currentTarget.classList.toggle('primary', addSpotMode);
-        showToast(addSpotMode ? 'Нажми на карту для метки' : 'Режим метки выключен');
-      });
-      document.getElementById('btnCloseSheet').addEventListener('click', () => document.getElementById('spotSheet').classList.remove('open'));
-      document.getElementById('btnStampSpot').addEventListener('click', () => selectedSpot && grantStamp(selectedSpot.id));
-      document.getElementById('btnCopyCoords').addEventListener('click', () => {
-        if (!selectedSpot) return;
-        const txt = `${selectedSpot.lat}, ${selectedSpot.lng}`;
-        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).catch(() => {});
-        showToast(txt);
-      });
-      document.getElementById('btnAddToRoute').addEventListener('click', () => {
-        if (!selectedSpot) return;
-        if (state.routeIds.indexOf(selectedSpot.id) === -1) {
-          state.routeIds.push(selectedSpot.id); saveState(); renderRouteOnMap(); showToast('Добавлено в маршрут');
-        } else showToast('Уже в маршруте');
-      });
-      document.getElementById('btnOpenInAr').addEventListener('click', () => {
-        if (!selectedSpot) return;
-        syncArSpot(selectedSpot.id);
-        document.querySelector('.nav-btn[data-view="ar"]').click();
-      });
-      document.getElementById('btnAutoRoute').addEventListener('click', () => {
-        state.routeIds = ['petrozavodsk-gastro', 'girvas-kivach', 'besov-nos', 'yukankoski'];
-        saveState(); renderRouteOnMap(); showToast('Маршрут собран');
-      });
-      document.getElementById('btnClearRoute').addEventListener('click', () => {
-        state.routeIds = []; saveState(); renderRouteOnMap(); showToast('Очищено');
-      });
-      document.getElementById('paceSelect').addEventListener('change', renderRouteOnMap);
-      document.getElementById('btnExportGpx').addEventListener('click', exportGpx);
-      document.getElementById('btnExportGeoJson').addEventListener('click', exportGeoJson);
-      document.getElementById('arSpotSelect').addEventListener('change', (e) => syncArSpot(e.target.value));
-      document.getElementById('azimuthSlider').addEventListener('input', updateCompassHint);
-      document.getElementById('btnToggleVoice').addEventListener('click', toggleVoice);
-      document.getElementById('btnToggleAmbient').addEventListener('click', toggleAmbient);
-      document.getElementById('btnToggleCam').addEventListener('click', toggleCamera);
-      document.getElementById('btnArStamp').addEventListener('click', () => { grantStamp(document.getElementById('arSpotSelect').value); renderPostcard(); });
-      document.getElementById('cardSpotSelect').addEventListener('change', renderPostcard);
-      document.getElementById('btnRenderCard').addEventListener('click', renderPostcard);
-      document.getElementById('btnDownloadCard').addEventListener('click', () => {
-        const a = document.createElement('a');
-        a.download = 'karelia-postcard.png';
-        a.href = document.getElementById('postcardCanvas').toDataURL('image/png');
-        a.click();
-      });
-      document.getElementById('btnShareCard').addEventListener('click', () => showToast('Используй «Скачать PNG»'));
-      document.getElementById('btnExportSave').addEventListener('click', () => downloadFile('karelia-passport-backup.json', JSON.stringify(state, null, 2), 'application/json'));
-      document.getElementById('btnResetProgress').addEventListener('click', () => {
-        state = cloneDefault(); saveState(); renderMarkers(); renderRouteOnMap(); renderUserSpots(); renderPostcard(); showToast('Сброшено');
-      });
-      document.getElementById('btnInstallPwa').addEventListener('click', () => showToast('В меню браузера выбери «На экран „Домой“»'));
-      window.addEventListener('online', updateNetStatus);
-      window.addEventListener('offline', updateNetStatus);
-    }
-
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
-    }
-
-    const opts = SPOTS.map((s) => `<option value="${s.id}">${s.name}</option>`).join('');
-    document.getElementById('arSpotSelect').innerHTML = opts;
-    document.getElementById('cardSpotSelect').innerHTML = opts;
-
-    updateNetStatus();
-    updateHeaderAndPassport();
-    initMap();
-    syncArSpot(SPOTS[0].id);
-    renderPostcard();
-    setupEvents();
-  </script>
-</body>
-</html>
+      const spotId = document.getElementById('cardSpotSelect').value;
+      const spot = SPOTS.find((s) => s.id === spotId);
+      if (!spot) return;
+      ctx.fillStyle =
