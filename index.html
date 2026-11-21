@@ -1,0 +1,1622 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#091311" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="./icon-192.svg" />
+  <link rel="apple-touch-icon" href="./icon-192.svg" />
+  <title>Карелия: Живые Тропы</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    :root {
+      --bg: #081210;
+      --surface: rgba(16, 33, 29, 0.86);
+      --surface-strong: rgba(12, 26, 23, 0.96);
+      --card: rgba(20, 42, 37, 0.72);
+      --border: rgba(110, 231, 183, 0.16);
+      --accent: #4fd1c5;
+      --accent-2: #68d391;
+      --warn: #f6ad55;
+      --text: #eef7f4;
+      --muted: #98b4ad;
+      --danger: #fc8181;
+      --radius: 18px;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+      overflow: hidden;
+    }
+
+    .app {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      max-width: 540px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      background: radial-gradient(circle at 20% 0%, rgba(79, 209, 197, 0.12), transparent 55%), var(--bg);
+      box-shadow: 0 0 60px rgba(0, 0, 0, 0.65);
+    }
+
+    .topbar {
+      z-index: 500;
+      padding: calc(10px + var(--safe-top)) 14px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: var(--surface-strong);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(14px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .brand-badge {
+      width: 34px;
+      height: 34px;
+      border-radius: 11px;
+      background: linear-gradient(135deg, rgba(79, 209, 197, 0.28), rgba(104, 211, 145, 0.16));
+      border: 1px solid rgba(79, 209, 197, 0.45);
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+
+    .brand-title {
+      font-size: 15px;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .brand-sub {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .status-pills {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .pill {
+      font-size: 11px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border);
+      color: var(--text);
+      white-space: nowrap;
+    }
+
+    .pill.offline {
+      border-color: rgba(246, 173, 85, 0.5);
+      color: var(--warn);
+      background: rgba(246, 173, 85, 0.12);
+    }
+
+    .views {
+      position: relative;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .view {
+      position: absolute;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      overflow-y: auto;
+      padding: 12px 14px 86px;
+      gap: 12px;
+    }
+
+    .view.active {
+      display: flex;
+    }
+
+    .view.map-view {
+      padding: 0;
+      overflow: hidden;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+      background: #0b1916;
+    }
+
+    .leaflet-tile-pane {
+      filter: saturate(0.85) brightness(0.92) contrast(1.06);
+    }
+
+    .map-overlay-top {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      z-index: 420;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .filter-row {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      pointer-events: auto;
+      scrollbar-width: none;
+    }
+
+    .filter-row::-webkit-scrollbar {
+      display: none;
+    }
+
+    .chip {
+      border: 1px solid var(--border);
+      background: var(--surface-strong);
+      color: var(--muted);
+      padding: 7px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      cursor: pointer;
+      backdrop-filter: blur(12px);
+    }
+
+    .chip.active {
+      background: rgba(79, 209, 197, 0.2);
+      color: var(--accent);
+      border-color: rgba(79, 209, 197, 0.55);
+    }
+
+    .map-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      pointer-events: auto;
+    }
+
+    .btn {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      padding: 9px 12px;
+      border-radius: 13px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      backdrop-filter: blur(10px);
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn.primary {
+      background: linear-gradient(135deg, rgba(79, 209, 197, 0.28), rgba(104, 211, 145, 0.2));
+      border-color: rgba(79, 209, 197, 0.55);
+      color: #d9fff9;
+    }
+
+    .btn.warn {
+      border-color: rgba(246, 173, 85, 0.45);
+      color: var(--warn);
+    }
+
+    .btn.small {
+      padding: 7px 10px;
+      font-size: 11px;
+      border-radius: 10px;
+    }
+
+    .cache-banner {
+      background: var(--surface-strong);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 8px 12px;
+      pointer-events: auto;
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .cache-banner.show {
+      display: flex;
+    }
+
+    .progress-track {
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      transition: width 0.2s ease;
+    }
+
+    .sheet {
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      bottom: calc(74px + var(--safe-bottom));
+      z-index: 440;
+      background: var(--surface-strong);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 14px;
+      backdrop-filter: blur(16px);
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 54%;
+      overflow-y: auto;
+    }
+
+    .sheet.open {
+      display: flex;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 13px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .card-title {
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .meta-line {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--accent);
+    }
+
+    .tag {
+      padding: 3px 8px;
+      border-radius: 8px;
+      background: rgba(79, 209, 197, 0.12);
+      border: 1px solid rgba(79, 209, 197, 0.25);
+    }
+
+    .ar-stage {
+      position: relative;
+      border-radius: 20px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: #060f0d;
+      min-height: 310px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 12px;
+    }
+
+    .ar-video, .ar-fallback {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .ar-fallback {
+      background:
+        radial-gradient(circle at 50% 35%, rgba(79, 209, 197, 0.22), transparent 55%),
+        linear-gradient(180deg, #0b1f1b 0%, #071210 60%, #050c0b 100%);
+      transition: transform 0.25s ease-out;
+    }
+
+    .ar-hud-top, .ar-hud-bottom {
+      position: relative;
+      z-index: 4;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .compass-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(8, 18, 16, 0.78);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 7px 10px;
+      font-size: 12px;
+    }
+
+    .glyph-layer {
+      position: relative;
+      z-index: 3;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 145px;
+    }
+
+    .glyph-box {
+      padding: 12px 16px;
+      border-radius: 16px;
+      background: rgba(9, 22, 19, 0.72);
+      border: 1px solid rgba(79, 209, 197, 0.5);
+      text-align: center;
+      box-shadow: 0 0 24px rgba(79, 209, 197, 0.22);
+    }
+
+    .glyph-art {
+      font-size: 26px;
+      letter-spacing: 6px;
+      color: var(--accent);
+      margin-bottom: 4px;
+    }
+
+    .wave {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      height: 18px;
+    }
+
+    .wave span {
+      width: 3px;
+      height: 6px;
+      border-radius: 3px;
+      background: var(--accent);
+      transition: height 0.15s ease;
+    }
+
+    .wave.playing span:nth-child(odd) {
+      height: 16px;
+    }
+
+    .wave.playing span:nth-child(even) {
+      height: 10px;
+    }
+
+    .stamp-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+
+    .stamp {
+      border: 1px dashed rgba(152, 180, 173, 0.35);
+      border-radius: 14px;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.03);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .stamp.unlocked {
+      border-style: solid;
+      border-color: rgba(104, 211, 145, 0.6);
+      background: rgba(104, 211, 145, 0.1);
+    }
+
+    .bottom-nav {
+      position: relative;
+      z-index: 500;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      padding: 6px 6px calc(8px + var(--safe-bottom));
+      background: var(--surface-strong);
+      border-top: 1px solid var(--border);
+      backdrop-filter: blur(16px);
+    }
+
+    .nav-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      padding: 6px 2px;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: 12px;
+    }
+
+    .nav-btn.active {
+      color: var(--accent);
+      background: rgba(79, 209, 197, 0.12);
+    }
+
+    .nav-ico {
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: calc(82px + var(--safe-bottom));
+      transform: translateX(-50%);
+      z-index: 900;
+      background: rgba(14, 32, 28, 0.96);
+      color: var(--text);
+      border: 1px solid rgba(79, 209, 197, 0.45);
+      padding: 9px 14px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      display: none;
+      max-width: 90vw;
+      text-align: center;
+    }
+
+    .toast.show {
+      display: block;
+    }
+
+    select, input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    select {
+      background: #0d211d;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 9px 10px;
+      font-size: 13px;
+    }
+
+    canvas.postcard {
+      width: 100%;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: #091512;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-badge">КТ</div>
+        <div>
+          <div class="brand-title">Карелия: Живые Тропы</div>
+          <div class="brand-sub" id="coordLabel">61.7849° N, 34.3469° E</div>
+        </div>
+      </div>
+      <div class="status-pills">
+        <div class="pill" id="netPill">Онлайн</div>
+        <div class="pill" id="stampCountPill">0/10</div>
+      </div>
+    </header>
+
+    <main class="views">
+      <!-- КАРТА -->
+      <section class="view map-view active" id="view-map">
+        <div class="map-overlay-top">
+          <div class="filter-row" id="categoryChips">
+            <button class="chip active" data-cat="all">Все</button>
+            <button class="chip" data-cat="nature">Природа</button>
+            <button class="chip" data-cat="mystic">Мистика</button>
+            <button class="chip" data-cat="history">История</button>
+            <button class="chip" data-cat="gastro">Гастро</button>
+          </div>
+          <div class="map-actions">
+            <button class="btn small primary" id="btnLocate">GPS</button>
+            <button class="btn small" id="btnTeleport">В Карелию</button>
+            <button class="btn small" id="btnCacheRegion">Кэш региона</button>
+            <button class="btn small" id="btnAddSpotMode">+ Точка</button>
+          </div>
+          <div class="cache-banner" id="cacheBanner">
+            <div style="display:flex;justify-content:space-between;font-size:11px;">
+              <span id="cacheStatusText">Кэширование тайлов...</span>
+              <span id="cachePctText">0%</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" id="cacheFill"></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="map"></div>
+
+        <div class="sheet" id="spotSheet">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+            <div>
+              <div class="card-title" id="sheetTitle">Локация</div>
+              <div class="muted" id="sheetCoords"></div>
+            </div>
+            <button class="btn small" id="btnCloseSheet">Закрыть</button>
+          </div>
+          <div class="meta-line" id="sheetMeta"></div>
+          <div class="muted" id="sheetDesc"></div>
+          <div class="muted" id="sheetAccess"></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="btn small primary" id="btnStampSpot">Штамп</button>
+            <button class="btn small" id="btnOpenInAr">В AR</button>
+            <button class="btn small" id="btnCopyCoords">Коорд.</button>
+            <button class="btn small" id="btnAddToRoute">+ В путь</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- МАРШРУТЫ -->
+      <section class="view" id="view-routes">
+        <div class="card">
+          <div class="card-title">Конструктор маршрута</div>
+          <div class="muted">Выбери темп и точек — нитка построится на карте, а трек можно выгрузить в GPX/GeoJSON.</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div>
+              <div class="muted" style="margin-bottom:4px;">Темп движения</div>
+              <select id="paceSelect">
+                <option value="walk">Пешком (4.5 км/ч)</option>
+                <option value="suv" selected>Внедорожник (38 км/ч)</option>
+                <option value="kayak">Каяк / Катер (12 км/ч)</option>
+              </select>
+            </div>
+            <div>
+              <div class="muted" style="margin-bottom:4px;">Бюджет на день</div>
+              <select id="budgetSelect">
+                <option value="low">Бюджетно (~2 500 ₽)</option>
+                <option value="mid" selected>Оптимально (~6 500 ₽)</option>
+                <option value="comfort">Комфорт (~14 000 ₽)</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="btn small primary" id="btnAutoRoute">Авто-подбор (4 точки)</button>
+            <button class="btn small" id="btnClearRoute">Очистить</button>
+          </div>
+        </div>
+
+        <div class="card" id="routeSummaryCard">
+          <div class="card-title">Сводка маршрута</div>
+          <div class="meta-line" id="routeStats">Точек: 0 · Дистанция: 0 км · Время: 0 ч</div>
+          <div id="routeStopsList" class="muted">Добавь точки с карты или нажми «Авто-подбор».</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">
+            <button class="btn small primary" id="btnExportGpx">Скачать .GPX</button>
+            <button class="btn small" id="btnExportGeoJson">Скачать .GeoJSON</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Полевые метки пользователя (<span id="userSpotsCount">0</span>)</div>
+          <div class="muted">Включи «+ Точка» на карте и нажми в нужном месте, чтобы сохранить стоянку, родник или грибное место.</div>
+          <div id="userSpotsList" class="muted">Пока нет личных меток.</div>
+        </div>
+      </section>
+
+      <!-- AR-ПОРТАЛ -->
+      <section class="view" id="view-ar">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+            <div>
+              <div class="card-title">AR-портал и компас</div>
+              <div class="muted">Наведи камеру или крути азимут для просмотра петроглифов и пеленгов.</div>
+            </div>
+            <select id="arSpotSelect" style="width:165px;"></select>
+          </div>
+        </div>
+
+        <div class="ar-stage">
+          <video class="ar-video" id="arVideo" autoplay playsinline muted></video>
+          <div class="ar-fallback" id="arFallback"></div>
+
+          <div class="ar-hud-top">
+            <div class="compass-bar">
+              <span>Азимут: <strong id="azimuthVal">0°</strong></span>
+              <span id="bearingHint">Направление к цели: —</span>
+            </div>
+            <input type="range" id="azimuthSlider" min="0" max="359" value="0" aria-label="Ручной поворот компаса" />
+          </div>
+
+          <div class="glyph-layer">
+            <div class="glyph-box">
+              <div class="glyph-art" id="arGlyphs">☉ 🦌 ⛵</div>
+              <div style="font-weight:700;font-size:14px;" id="arLegendTitle">Солярные знаки и ладьи</div>
+              <div class="muted" id="arLegendText" style="margin-top:4px;">Выбери локацию и запусти аудиогид.</div>
+            </div>
+          </div>
+
+          <div class="ar-hud-bottom">
+            <div style="display:flex;justify-content:space-between;align-items:center;background:rgba(8,18,16,0.82);padding:8px 10px;border-radius:12px;border:1px solid var(--border);">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <div class="wave" id="audioWave">
+                  <span></span><span></span><span></span><span></span><span></span>
+                </div>
+                <span style="font-size:12px;" id="audioStatus">Аудиогид готов</span>
+              </div>
+              <div style="display:flex;gap:6px;">
+                <button class="btn small primary" id="btnToggleVoice">Голос</button>
+                <button class="btn small" id="btnToggleAmbient">Волны/Ветер</button>
+              </div>
+            </div>
+
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <button class="btn small primary" id="btnToggleCam">Камера AR</button>
+              <button class="btn small" id="btnArStamp">Забрать штамп</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ОТКРЫТКА -->
+      <section class="view" id="view-card">
+        <div class="card">
+          <div class="card-title">Живая открытка из Карелии</div>
+          <div class="muted">Собери открытку с координатами и штампом, чтобы сохранить или отправить друзьям.</div>
+          <select id="cardSpotSelect"></select>
+          <canvas class="postcard" id="postcardCanvas" width="800" height="500"></canvas>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn small primary" id="btnRenderCard">Обновить макет</button>
+            <button class="btn small" id="btnDownloadCard">Скачать PNG</button>
+            <button class="btn small" id="btnShareCard">Поделиться</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ПАСПОРТ -->
+      <section class="view" id="view-passport">
+        <div class="card">
+          <div class="card-title">Паспорт путешественника</div>
+          <div class="muted" id="rankLabel">Уровень: Разведчик озёр · Штампов: 0 из 10</div>
+          <div class="progress-track">
+            <div class="progress-fill" id="passportProgress"></div>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">
+            <button class="btn small primary" id="btnInstallPwa">Установить PWA</button>
+            <button class="btn small" id="btnExportSave">Бэкап .JSON</button>
+            <button class="btn small warn" id="btnResetProgress">Сброс</button>
+          </div>
+        </div>
+
+        <div class="stamp-grid" id="stampsGrid"></div>
+
+        <div class="card">
+          <div class="card-title">Деплой на GitHub Pages с телефона</div>
+          <div class="muted">
+            Загрузи в репозиторий файлы <code>index.html</code>, <code>manifest.json</code>, <code>sw.js</code>, <code>icon-192.svg</code>, <code>icon-512.svg</code> и <code>.nojekyll</code>, затем включи Pages в ветке <code>main</code>.
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav">
+      <button class="nav-btn active" data-view="map">
+        <span class="nav-ico">🗺️</span>
+        <span>Карта</span>
+      </button>
+      <button class="nav-btn" data-view="routes">
+        <span class="nav-ico">🧭</span>
+        <span>Маршруты</span>
+      </button>
+      <button class="nav-btn" data-view="ar">
+        <span class="nav-ico">📡</span>
+        <span>AR</span>
+      </button>
+      <button class="nav-btn" data-view="card">
+        <span class="nav-ico">🖼️</span>
+        <span>Открытка</span>
+      </button>
+      <button class="nav-btn" data-view="passport">
+        <span class="nav-ico">🛂</span>
+        <span>Паспорт</span>
+      </button>
+    </nav>
+
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <script>
+    const SPOTS = [
+      {
+        id: 'besov-nos',
+        name: 'Мыс Бесов Нос',
+        cat: 'mystic',
+        lat: 61.6761,
+        lng: 35.6192,
+        parking: '61.6985° N, 35.5620° E (заброска по берегу / катер)',
+        access: 'Внедорожник / Катер',
+        glyphs: '☉ 🦌 ⛵',
+        legendTitle: 'Онежские петроглифы и мысовой страж',
+        legend: 'На гранитных плитах мыса высечены фигуры оленей, лебедей, ладей и солярные знаки. При штормовом ветре с Онеги звук волн в расщелинах звучит как голос древнего сказителя.',
+        tip: 'Бери репеллент и запас воды; при сильной волне выход на мыс безопаснее по береговой тропе.'
+      },
+      {
+        id: 'yukankoski',
+        name: 'Водопад Юканкоски (Белые Мосты)',
+        cat: 'nature',
+        lat: 61.8253,
+        lng: 31.6986,
+        parking: '61.8390° N, 31.7140° E (лесная дорога от Питкяранты)',
+        access: 'Внедорожник',
+        glyphs: '🌊 🌲 🪨',
+        legendTitle: 'Грохот двух каскадов в глухом бору',
+        legend: 'Река Кулисмайоки падает двумя ступенями среди тёмных габбро-диабазов и старых мостовых устоев. Весной и после ливней водяная пыль поднимается над соснами.',
+        tip: 'Мокрые камни у кромки очень скользкие — выбирай обувь с цепким протектором.'
+      },
+      {
+        id: 'vottovaara',
+        name: 'Гора Воттоваара',
+        cat: 'mystic',
+        lat: 63.0736,
+        lng: 32.6231,
+        parking: '63.0610° N, 32.6580° E (Гимолы / Суккозеро)',
+        access: 'Внедорожник',
+        glyphs: '🪨 🌲 🌀',
+        legendTitle: 'Сейды и кривые берёзы вершины',
+        legend: 'Высшая точка Западно-Карельской возвышенности известна каменными сейдами на ножках, амфитеатром и скрюченными северными берёзами, закалёнными ветрами.',
+        tip: 'На вершине нет укрытий от грозы и сильного ветра — следи за прогнозом.'
+      },
+      {
+        id: 'kizhi',
+        name: 'Остров Кижи',
+        cat: 'history',
+        lat: 62.0672,
+        lng: 35.2217,
+        parking: '61.7885° N, 34.3790° E (причал Петрозаводска / метеор)',
+        access: 'Катер / Метеор',
+        glyphs: '⛪ 🪵 ⚓',
+        legendTitle: 'Деревянное зодчество посреди Онежского озера',
+        legend: 'Шатры и главки Преображенской церкви собраны без единого гвоздя по канонам северных плотников, а вокруг раскинулись крестьянские усадьбы Заонежья.',
+        tip: 'Учитывай расписание водного транспорта и погоду на открытой воде Онеги.'
+      },
+      {
+        id: 'koyonsaari',
+        name: 'Остров Койонсаари',
+        cat: 'nature',
+        lat: 61.1689,
+        lng: 30.1458,
+        parking: '61.1745° N, 30.1535° E (мост у Вятиккя, Лахденпохья)',
+        access: 'Легко / Кроссовер',
+        glyphs: '🏖️  pine 🌅',
+        legendTitle: 'Песчаные бухты Ладожских шхер',
+        legend: 'Остров соединён с берегом мостом и славится светлыми песчаными пляжами, гранитными лбами и видами на шхеры северной Ладоги.',
+        tip: 'В выходные у въезда бывает плотный поток машин — приезжай пораньше.'
+      },
+      {
+        id: 'korela',
+        name: 'Крепость Корела и Приозерск',
+        cat: 'history',
+        lat: 61.0358,
+        lng: 30.1236,
+        parking: '61.0332° N, 30.1295° E (центр Приозерска)',
+        access: 'Легко',
+        glyphs: '🏰 ⚔️ 🌊',
+        legendTitle: 'Бастионы на острове реки Вуоксы',
+        legend: 'Древняя карельская крепость Кексгольм — Корела столетиями стояла на перекрёстке торговых и военных путей между Ладогой и Карельским перешейком.',
+        tip: 'Удобная точка старта или возвращения по пути в Лахденпохью и Сортавалу.'
+      },
+      {
+        id: 'ruskeala',
+        name: 'Рускеала и водопады Ахвенкоски',
+        cat: 'nature',
+        lat: 61.9464,
+        lng: 30.5819,
+        parking: '61.9435° N, 30.5860° E (парковка у горного парка)',
+        access: 'Легко',
+        glyphs: '⛰️ 💧 🌲',
+        legendTitle: 'Изумрудный мраморный каньон',
+        legend: 'Старые мраморные ломки заполнены прозрачной водой изумрудного оттенка, а рядом шумит река Тохмайоки с порогами Ахвенкоски.',
+        tip: 'В пик сезона бери билеты и экскурсии заранее или заезжай на закате.'
+      },
+      {
+        id: 'girvas-kivach',
+        name: 'Вулкан Гирвас и заповедник Кивач',
+        cat: 'nature',
+        lat: 62.4875,
+        lng: 33.6694,
+        parking: '62.4840° N, 33.6750° E (трасса Р-21 «Кола»)',
+        access: 'Легко / Кроссовер',
+        glyphs: '🌋 💦 🌲',
+        legendTitle: 'Древние лавовые потоки и каскад Суны',
+        legend: 'Застывшие базальтовые лавы палеовулкана Гирвас соседствуют с равнинным водопадом Кивач и карельской берёзой.',
+        tip: 'Удобно совместить по пути из Петрозаводска на север республики.'
+      },
+      {
+        id: 'paanajarvi',
+        name: 'Национальный парк Паанаярви и Нуорунен',
+        cat: 'nature',
+        lat: 66.2764,
+        lng: 30.0256,
+        parking: '66.2980° N, 30.4520° E (визит-центр в Пяозерском)',
+        access: 'Внедорожник',
+        glyphs: '🏔️ 🦅 🌌',
+        legendTitle: 'Северная тундра и глубокое озеро-разлом',
+        legend: 'Узкое тектоническое озеро Паанаярви зажато между крутыми склонами, а гора Нуорунен (576 м) — самая высокая точка Карелии.',
+        tip: 'Обязательно оформи разрешение на посещение нацпарка и проверь запас топлива.'
+      },
+      {
+        id: 'petrozavodsk-gastro',
+        name: 'Петрозаводск: гастро-точка и набережная',
+        cat: 'gastro',
+        lat: 61.7891,
+        lng: 34.3712,
+        parking: '61.7875° N, 34.3660° E (Онежская набережная)',
+        access: 'Легко',
+        glyphs: '🍲 🥧 ⚓',
+        legendTitle: 'Лохикейтто, калитки и берег Онего',
+        legend: 'Столица Карелии у Онежского озера — лучшее место согреться сливочной ухой из форели (лохикейтто), попробовать свежие калитки и прогуляться по набережной.',
+        tip: 'Загляни в локальные пекарни и кафе в центре до закрытия вечерних витрин.'
+      }
+    ];
+
+    const STORAGE_KEY = 'karelia_live_trails_state_v1';
+    const defaultState = {
+      stamps: [],
+      routeIds: ['petrozavodsk-gastro', 'girvas-kivach', 'besov-nos'],
+      userSpots: [],
+      lat: 61.7849,
+      lng: 34.3469
+    };
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return structuredClone(defaultState);
+        return { ...structuredClone(defaultState), ...JSON.parse(raw) };
+      } catch (e) {
+        return structuredClone(defaultState);
+      }
+    }
+
+    let state = loadState();
+    let activeCat = 'all';
+    let addSpotMode = false;
+    let selectedSpot = SPOTS[0];
+    let map, markersLayer, routeLine, userSpotMarkersLayer;
+    let camStream = null;
+    let ambientCtx = null, ambientGain = null, ambientOn = false;
+
+    function saveState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (e) {}
+      updateHeaderAndPassport();
+    }
+
+    function showToast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => el.classList.remove('show'), 2400);
+    }
+
+    function updateNetStatus() {
+      const online = navigator.onLine;
+      const pill = document.getElementById('netPill');
+      pill.textContent = online ? 'Онлайн' : 'Офлайн';
+      pill.classList.toggle('offline', !online);
+    }
+
+    function updateHeaderAndPassport() {
+      document.getElementById('coordLabel').textContent =
+        `${state.lat.toFixed(4)}° N, ${state.lng.toFixed(4)}° E`;
+      document.getElementById('stampCountPill').textContent = `${state.stamps.length}/${SPOTS.length}`;
+
+      const pct = Math.round((state.stamps.length / SPOTS.length) * 100);
+      document.getElementById('passportProgress').style.width = `${pct}%`;
+
+      let rank = 'Разведчик озёр';
+      if (state.stamps.length >= 8) rank = 'Хранитель северных троп';
+      else if (state.stamps.length >= 4) rank = 'Следопыт Карелии';
+
+      document.getElementById('rankLabel').textContent =
+        `Уровень: ${rank} · Штампов: ${state.stamps.length} из ${SPOTS.length}`;
+
+      const grid = document.getElementById('stampsGrid');
+      grid.innerHTML = SPOTS.map((s) => {
+        const has = state.stamps.includes(s.id);
+        return `
+          <div class="stamp ${has ? 'unlocked' : ''}">
+            <div style="font-weight:700;font-size:13px;">${has ? '✓ ' : '○ '}${s.name}</div>
+            <div class="muted">${has ? 'Штамп получен' : s.access}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function initMap() {
+      map = L.map('map', { zoomControl: false }).setView([state.lat, state.lng], 7);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 18,
+        attribution: '&copy; OpenStreetMap &copy; CARTO'
+      }).addTo(map);
+
+      markersLayer = L.layerGroup().addTo(map);
+      userSpotMarkersLayer = L.layerGroup().addTo(map);
+      routeLine = L.polyline([], { color: '#4fd1c5', weight: 3.5, dashArray: '6, 8' }).addTo(map);
+
+      map.on('click', (e) => {
+        if (!addSpotMode) return;
+        const name = prompt('Название полевой точки (например: Стоянка у озера, Родник):');
+        if (!name || !name.trim()) return;
+        const spot = {
+          id: 'u_' + Date.now(),
+          name: name.trim(),
+          lat: Number(e.latlng.lat.toFixed(5)),
+          lng: Number(e.latlng.lng.toFixed(5)),
+          createdAt: new Date().toISOString().slice(0, 10)
+        };
+        state.userSpots.push(spot);
+        addSpotMode = false;
+        document.getElementById('btnAddSpotMode').classList.remove('primary');
+        saveState();
+        renderUserSpots();
+        showToast('Точка сохранена');
+      });
+
+      renderMarkers();
+      renderRouteOnMap();
+      renderUserSpots();
+    }
+
+    function renderMarkers() {
+      markersLayer.clearLayers();
+      const filtered = SPOTS.filter((s) => activeCat === 'all' || s.cat === activeCat);
+      filtered.forEach((s) => {
+        const stamped = state.stamps.includes(s.id);
+        const marker = L.circleMarker([s.lat, s.lng], {
+          radius: stamped ? 9 : 8,
+          color: stamped ? '#68d391' : '#4fd1c5',
+          fillColor: stamped ? '#68d391' : '#4fd1c5',
+          fillOpacity: 0.85,
+          weight: 2
+        }).addTo(markersLayer);
+
+        marker.bindTooltip(s.name, { direction: 'top' });
+        marker.on('click', () => openSpotSheet(s));
+      });
+    }
+
+    function openSpotSheet(spot) {
+      selectedSpot = spot;
+      document.getElementById('sheetTitle').textContent = spot.name;
+      document.getElementById('sheetCoords').textContent = `${spot.lat.toFixed(4)}° N, ${spot.lng.toFixed(4)}° E`;
+      document.getElementById('sheetMeta').innerHTML = `
+        <span class="tag">${spot.access}</span>
+        <span class="tag">${state.stamps.includes(spot.id) ? 'Штамп есть' : 'Штамп не собран'}</span>
+      `;
+      document.getElementById('sheetDesc').textContent = spot.legend;
+      document.getElementById('sheetAccess').textContent = `Подъезд / старт: ${spot.parking}. Совет: ${spot.tip}`;
+      document.getElementById('spotSheet').classList.add('open');
+      map.panTo([spot.lat, spot.lng]);
+    }
+
+    function grantStamp(spotId) {
+      if (!state.stamps.includes(spotId)) {
+        state.stamps.push(spotId);
+        saveState();
+        renderMarkers();
+        if (selectedSpot && selectedSpot.id === spotId) openSpotSheet(selectedSpot);
+        showToast('Штамп добавлен в паспорт!');
+      } else {
+        showToast('Этот штамп уже получен');
+      }
+    }
+
+    function haversineKm(a, b) {
+      const R = 6371;
+      const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+      const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+      const x =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos((a.lat * Math.PI) / 180) *
+          Math.cos((b.lat * Math.PI) / 180) *
+          Math.sin(dLng / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+    }
+
+    function renderRouteOnMap() {
+      const pts = state.routeIds
+        .map((id) => SPOTS.find((s) => s.id === id))
+        .filter(Boolean);
+      routeLine.setLatLngs(pts.map((p) => [p.lat, p.lng]));
+
+      let dist = 0;
+      for (let i = 1; i < pts.length; i++) {
+        dist += haversineKm(pts[i - 1], pts[i]) * 1.25;
+      }
+      const pace = document.getElementById('paceSelect').value;
+      const speed = pace === 'walk' ? 4.5 : pace === 'kayak' ? 12 : 38;
+      const hours = dist > 0 ? (dist / speed + pts.length * 1.2).toFixed(1) : '0.0';
+
+      document.getElementById('routeStats').textContent =
+        `Точек: ${pts.length} · Дистанция: ~${Math.round(dist)} км · Время: ~${hours} ч`;
+
+      const listEl = document.getElementById('routeStopsList');
+      if (!pts.length) {
+        listEl.textContent = 'Добавь точки с карты или нажми «Авто-подбор».';
+      } else {
+        listEl.innerHTML = pts
+          .map((p, idx) => `${idx + 1}. <strong>${p.name}</strong> (${p.access})`)
+          .join('<br>');
+      }
+    }
+
+    function renderUserSpots() {
+      userSpotMarkersLayer.clearLayers();
+      document.getElementById('userSpotsCount').textContent = state.userSpots.length;
+      const listEl = document.getElementById('userSpotsList');
+      if (!state.userSpots.length) {
+        listEl.textContent = 'Пока нет личных меток.';
+        return;
+      }
+      listEl.innerHTML = state.userSpots
+        .map((u) => {
+          L.circleMarker([u.lat, u.lng], {
+            radius: 7,
+            color: '#f6ad55',
+            fillColor: '#f6ad55',
+            fillOpacity: 0.85
+          })
+            .bindTooltip(`Моя точка: ${u.name}`)
+            .addTo(userSpotMarkersLayer);
+          return `• <strong>${u.name}</strong> — ${u.lat}, ${u.lng} (${u.createdAt})`;
+        })
+        .join('<br>');
+    }
+
+    async function cacheKareliaTiles() {
+      if (!('caches' in window)) {
+        showToast('Cache API недоступен в этом браузере');
+        return;
+      }
+      const banner = document.getElementById('cacheBanner');
+      const fill = document.getElementById('cacheFill');
+      const statusText = document.getElementById('cacheStatusText');
+      const pctText = document.getElementById('cachePctText');
+      banner.classList.add('show');
+
+      const urls = [];
+      const minLat = 60.5, maxLat = 66.6, minLng = 29.8, maxLng = 36.2;
+
+      function lon2tile(lon, z) {
+        return Math.floor(((lon + 180) / 360) * Math.pow(2, z));
+      }
+      function lat2tile(lat, z) {
+        return Math.floor(
+          ((1 -
+            Math.log(
+              Math.tan((lat * Math.PI) / 180) + 1 / Math.cos((lat * Math.PI) / 180)
+            ) /
+              Math.PI) /
+            2) *
+            Math.pow(2, z)
+        );
+      }
+
+      [7, 8].forEach((z) => {
+        const xMin = lon2tile(minLng, z), xMax = lon2tile(maxLng, z);
+        const yMin = lat2tile(maxLat, z), yMax = lat2tile(minLat, z);
+        for (let x = xMin; x <= xMax; x++) {
+          for (let y = yMin; y <= yMax; y++) {
+            const sub = ['a', 'b', 'c'][(x + y) % 3];
+            urls.push(`https://${sub}.basemaps.cartocdn.com/dark_all/${z}/${x}/${y}.png`);
+          }
+        }
+      });
+
+      const cache = await caches.open('karelia-map-tiles-v1');
+      let done = 0;
+      for (const u of urls) {
+        try {
+          const existing = await cache.match(u);
+          if (!existing) {
+            const res = await fetch(u);
+            if (res.ok) await cache.put(u, res);
+          }
+        } catch (e) {}
+        done++;
+        const pct = Math.round((done / urls.length) * 100);
+        fill.style.width = `${pct}%`;
+        pctText.textContent = `${pct}%`;
+        statusText.textContent = `Кэш Карелии: ${done}/${urls.length}`;
+      }
+      statusText.textContent = `Сохранено тайлов: ${urls.length}`;
+      showToast('Регион Карелии закэширован');
+    }
+
+    function downloadFile(filename, content, mime) {
+      const blob = new Blob([content], { type: mime });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+    }
+
+    function exportGpx() {
+      const pts = state.routeIds.map((id) => SPOTS.find((s) => s.id === id)).filter(Boolean);
+      const trkPts = pts
+        .map((p) => `      <trkpt lat="${p.lat}" lon="${p.lng}"><name>${p.name}</name></trkpt>`)
+        .join('
+');
+      const wpts = state.userSpots
+        .map((u) => `  <wpt lat="${u.lat}" lon="${u.lng}"><name>${u.name}</name></wpt>`)
+        .join('
+');
+      const gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Karelia Live Trails">
+${wpts}
+  <trk>
+    <name>Маршрут Карелия: Живые Тропы</name>
+    <trkseg>
+${trkPts}
+    </trkseg>
+  </trk>
+</gpx>`;
+      downloadFile('karelia-route.gpx', gpx, 'application/gpx+xml');
+      showToast('Выгружен karelia-route.gpx');
+    }
+
+    function exportGeoJson() {
+      const pts = state.routeIds.map((id) => SPOTS.find((s) => s.id === id)).filter(Boolean);
+      const features = [
+        ...pts.map((p) => ({
+          type: 'Feature',
+          properties: { name: p.name, category: p.cat, access: p.access },
+          geometry: { type: 'Point', coordinates: [p.lng, p.lat] }
+        })),
+        ...state.userSpots.map((u) => ({
+          type: 'Feature',
+          properties: { name: u.name, type: 'user_spot', date: u.createdAt },
+          geometry: { type: 'Point', coordinates: [u.lng, u.lat] }
+        }))
+      ];
+      if (pts.length > 1) {
+        features.push({
+          type: 'Feature',
+          properties: { name: 'Нитка маршрута' },
+          geometry: {
+            type: 'LineString',
+            coordinates: pts.map((p) => [p.lng, p.lat])
+          }
+        });
+      }
+      downloadFile(
+        'karelia-route.geojson',
+        JSON.stringify({ type: 'FeatureCollection', features }, null, 2),
+        'application/geo+json'
+      );
+      showToast('Выгружен karelia-route.geojson');
+    }
+
+    function populateSelectors() {
+      const arSel = document.getElementById('arSpotSelect');
+      const cardSel = document.getElementById('cardSpotSelect');
+      const opts = SPOTS.map((s) => `<option value="${s.id}">${s.name}</option>`).join('');
+      arSel.innerHTML = opts;
+      cardSel.innerHTML = opts;
+      syncArSpot(SPOTS[0].id);
+      renderPostcard();
+    }
+
+    function syncArSpot(id) {
+      const spot = SPOTS.find((s) => s.id === id) || SPOTS[0];
+      document.getElementById('arSpotSelect').value = spot.id;
+      document.getElementById('arGlyphs').textContent = spot.glyphs;
+      document.getElementById('arLegendTitle').textContent = spot.legendTitle;
+      document.getElementById('arLegendText').textContent = spot.legend;
+      updateCompassHint();
+    }
+
+    function updateCompassHint() {
+      const az = Number(document.getElementById('azimuthSlider').value || 0);
+      document.getElementById('azimuthVal').textContent = `${az}°`;
+      document.getElementById('arFallback').style.transform = `translateX(${((az % 90) - 45) * 0.4}px)`;
+      const spot = SPOTS.find((s) => s.id === document.getElementById('arSpotSelect').value) || SPOTS[0];
+      const dLng = spot.lng - state.lng;
+      const dLat = spot.lat - state.lat;
+      const bearing = Math.round(((Math.atan2(dLng, dLat) * 180) / Math.PI + 360) % 360);
+      const diff = Math.round(((bearing - az + 540) % 360) - 180);
+      document.getElementById('bearingHint').textContent =
+        Math.abs(diff) < 15
+          ? `Цель прямо по курсу (${bearing}°)`
+          : `Поверни ${diff > 0 ? 'вправо' : 'влево'} на ${Math.abs(diff)}°`;
+    }
+
+    function toggleVoice() {
+      if (!('speechSynthesis' in window)) {
+        showToast('Озвучка не поддерживается в этом браузере');
+        return;
+      }
+      if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+        document.getElementById('audioWave').classList.remove('playing');
+        document.getElementById('audioStatus').textContent = 'Остановлено';
+        return;
+      }
+      const spot = SPOTS.find((s) => s.id === document.getElementById('arSpotSelect').value) || SPOTS[0];
+      const utter = new SpeechSynthesisUtterance(`${spot.name}. ${spot.legend}`);
+      utter.lang = 'ru-RU';
+      utter.onstart = () => {
+        document.getElementById('audioWave').classList.add('playing');
+        document.getElementById('audioStatus').textContent = 'Читает гид...';
+      };
+      utter.onend = () => {
+        document.getElementById('audioWave').classList.remove('playing');
+        document.getElementById('audioStatus').textContent = 'Завершено';
+      };
+      window.speechSynthesis.speak(utter);
+    }
+
+    function toggleAmbient() {
+      if (!ambientOn) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!ambientCtx) return;
+        ambientCtx = new AudioCtx();
+        const bufferSize = ambientCtx.sampleRate * 2;
+        const buffer = ambientCtx.createBuffer(1, bufferSize, ambientCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        let last = 0;
+        for (let i = 0; i < bufferSize; i++) {
+          const white = Math.random() * 2 - 1;
+          data[i] = (last + 0.02 * white) / 1.02;
+          last = data[i];
+          data[i] *= 1.8;
+        }
+        const noise = ambientCtx.createBufferSource();
+        noise.buffer = buffer;
+        noise.loop = true;
+
+        const filter = ambientCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 340;
+
+        ambientGain = ambientCtx.createGain();
+        ambientGain.gain.value = 0.14;
+
+        noise.connect(filter);
+        filter.connect(ambientGain);
+        ambientGain.connect(ambientCtx.destination);
+        noise.start();
+        ambientOn = true;
+        showToast('Шум волн и ветра включён');
+      } else {
+        if (ambientCtx) ambientCtx.close();
+        ambientCtx = null;
+        ambientOn = false;
+        showToast('Звук фона выключен');
+      }
+    }
+
+    async function toggleCamera() {
+      const video = document.getElementById('arVideo');
+      if (camStream) {
+        camStream.getTracks().forEach((t) => t.stop());
+        camStream = null;
+        video.srcObject = null;
+        showToast('Камера выключена');
+        return;
+      }
+      try {
+        camStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } },
+          audio: false
+        });
+        video.srcObject = camStream;
+        showToast('Камера AR активна');
+      } catch (e) {
+        showToast('Камера недоступна — включён макет');
+      }
+    }
+
+    function renderPostcard() {
+      const spot = SPOTS.find((s) => s.id === document.getElementById('cardSpotSelect').value) || SPOTS[0];
+      const canvas = document.getElementById('postcardCanvas');
+      const ctx = canvas.getContext('2d');
+      const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+      grad.addColorStop(0, '#0d2621');
+      grad.addColorStop(0.55, '#123831');
+      grad.addColorStop(1, '#081412');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.strokeStyle = 'rgba(79, 209, 197, 0.35)';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(24, 24, canvas.width - 48, canvas.height - 48);
+
+      ctx.fillStyle = '#4fd1c5';
+      ctx.font = 'bold 20px sans-serif';
+      ctx.fillText('КАРЕЛИЯ: ЖИВЫЕ ТРОПЫ', 54, 74);
+
+      ctx.fillStyle = '#eef7f4';
+      ctx.font = 'bold 34px sans-serif';
+      ctx.fillText(spot.name, 54, 145);
+
+      ctx.fillStyle = '#98b4ad';
+      ctx.font = '20px sans-serif';
+      ctx.fillText(`${spot.lat.toFixed(4)}° N, ${spot.lng.toFixed(4)}° E · ${spot.access}`, 54, 188);
+
+      ctx.fillStyle = '#d9fff9';
+      ctx.font = '28px sans-serif';
+      ctx.fillText(`Знаки: ${spot.glyphs}`, 54, 255);
+
+      const hasStamp = state.stamps.includes(spot.id);
+      ctx.strokeStyle = hasStamp ? '#68d391' : 'rgba(255,255,255,0.25)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(650, 355, 76, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = hasStamp ? '#68d391' : '#98b4ad';
+      ctx.font = 'bold 18px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(hasStamp ? 'ШТАМП' : 'ПУТЬ', 650, 350);
+      ctx.font = '15px sans-serif';
+      ctx.fillText('КАРЕЛИЯ', 650, 374);
+      ctx.textAlign = 'left';
+
+      ctx.fillStyle = '#98b4ad';
+      ctx.font = '18px sans-serif';
+      ctx.fillText(`Собрано штампов: ${state.stamps.length}/${SPOTS.length}`, 54, 425);
+    }
+
+    function setupEvents() {
+      document.querySelectorAll('.nav-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const target = btn.dataset.view;
+          document.querySelectorAll('.nav-btn').forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'));
+          document.getElementById(`view-${target}`).classList.add('active');
+          if (target === 'map' && map) {
+            setTimeout(() => map.invalidateSize(), 120);
+          }
+          if (target === 'card') renderPostcard();
+        });
+      });
+
+      document.querySelectorAll('#categoryChips .chip').forEach((chip) => {
+        chip.addEventListener('click', () => {
+          document.querySelectorAll('#categoryChips .chip').forEach((c) => c.classList.remove('active'));
+          chip.classList.add('active');
+          activeCat = chip.dataset.cat;
+          renderMarkers();
+        });
+      });
+
+      document.getElementById('btnLocate').addEventListener('click', () => {
+        if (!navigator.geolocation) return showToast('GPS недоступен');
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            state.lat = pos.coords.latitude;
+            state.lng = pos.coords.longitude;
+            saveState();
+            map.setView([state.lat, state.lng], 10);
+            updateCompassHint();
+            showToast('Геопозиция обновлена');
+          },
+          () => showToast('Не удалось получить GPS'),
+          { enableHighAccuracy: true }
+        );
+      });
+
+      document.getElementById('btnTeleport').addEventListener('click', () => {
+        state.lat = 61.7891;
+        state.lng = 34.3712;
+        saveState();
+        map.setView([state.lat, state.lng], 8);
+        updateCompassHint();
+        showToast('Переместились в Петрозаводск');
+      });
+
+      document.getElementById('btnCacheRegion').addEventListener('click', cacheKareliaTiles);
+
+      document.getElementById('btnAddSpotMode').addEventListener('click', (e) => {
+        addSpotMode = !addSpotMode;
+        e.currentTarget.classList.toggle('primary', addSpotMode);
+        showToast(addSpotMode ? 'Нажми на карту для метки' : 'Режим метки выключен');
+      });
+
+      document.getElementById('btnCloseSheet').addEventListener('click', () => {
+        document.getElementById('spotSheet').classList.remove('open');
+      });
+
+      document.getElementById('btnStampSpot').addEventListener('click', () => {
+        if (selectedSpot) grantStamp(selectedSpot.id);
+      });
+
+      document.getElementById('btnCopyCoords').addEventListener('click', () => {
+        if (!selectedSpot) return;
+        const text = `${selectedSpot.lat}, ${selectedSpot.lng}`;
+        navigator.clipboard?.writeText(text);
+        showToast(`Скопировано: ${text}`);
+      });
+
+      document.getElementById('btnAddToRoute').addEventListener('click', () => {
+        if (!selectedSpot) return;
+        if (!state.routeIds.includes(selectedSpot.id)) {
+          state.routeIds.push(selectedSpot.id);
+          saveState();
+          renderRouteOnMap();
+          showToast('Добавлено в маршрут');
+        } else {
+          showToast('Уже есть в маршруте');
+        }
+      });
+
+      document.getElementById('btnOpenInAr').addEventListener('click', () => {
+        if (!selectedSpot) return;
+        syncArSpot(selectedSpot.id);
+        document.querySelector('.nav-btn[data-view="ar"]').click();
+      });
+
+      document.getElementById('btnAutoRoute').addEventListener('click', () => {
+        state.routeIds = ['petrozavodsk-gastro', 'girvas-kivach', 'besov-nos', 'yukankoski'];
+        saveState();
+        renderRouteOnMap();
+        showToast('Собран базовый маршрут');
+      });
+
+      document.getElementById('btnClearRoute').addEventListener('click', () => {
+        state.routeIds = [];
+        saveState();
+        renderRouteOnMap();
+        showToast('Маршрут очищен');
+      });
+
+      document.getElementById('paceSelect').addEventListener('change', renderRouteOnMap);
+      document.getElementById('btnExportGpx').addEventListener('click', exportGpx);
+      document.getElementById('btnExportGeoJson').addEventListener('click', exportGeoJson);
+
+      document.getElementById('arSpotSelect').addEventListener('change', (e) => syncArSpot(e.target.value));
+      document.getElementById('azimuthSlider').addEventListener('input', updateCompassHint);
+      document.getElementById('btnToggleVoice').addEventListener('click', toggleVoice);
+      document.getElementById('btnToggleAmbient').addEventListener('click', toggleAmbient);
+      document.getElementById('btnToggleCam').addEventListener('click', toggleCamera);
+      document.getElementById('btnArStamp').addEventListener('click', () => {
+        const id = document.getElementById('arSpotSelect').value;
+        grantStamp(id);
+        renderPostcard();
+      });
+
+      document.getElementById('cardSpotSelect').addEventListener('change', renderPostcard);
+      document.getElementById('btnRenderCard').addEventListener('click', renderPostcard);
+      document.getElementById('btnDownloadCard').addEventListener('click', () => {
+        const link = document.createElement('a');
+        link.download = 'karelia-postcard.png';
+        link.href = document.getElementById('postcardCanvas').toDataURL('image/png');
+        link.click();
+        showToast('Открытка скачана');
+      });
+
+      document.getElementById('btnShareCard').addEventListener('click', async () => {
+        const canvas = document.getElementById('postcardCanvas');
+        canvas.toBlob(async (blob) => {
+          if (navigator.share && blob) {
+            try {
+              const file = new File([blob], 'karelia-postcard.png', { type: 'image/png' });
+              await navigator.share({ title: 'Карелия: Живые Тропы', files: [file] });
+              return;
+            } catch (e) {}
+          }
+          showToast('Используй «Скачать PNG» для отправки');
+        });
+      });
+
+      document.getElementById('btnExportSave').addEventListener('click', () => {
+        downloadFile('karelia-passport-backup.json', JSON.stringify(state, null, 2), 'application/json');
+        showToast('Резервная копия сохранена');
+      });
+
+      document.getElementById('btnResetProgress').addEventListener('click', () => {
+        state = structuredClone(defaultState);
+        saveState();
+        renderMarkers();
+        renderRouteOnMap();
+        renderUserSpots();
+        renderPostcard();
+        showToast('Прогресс сброшен');
+      });
+
+      let deferredPrompt = null;
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+      });
+
+      document.getElementById('btnInstallPwa').addEventListener('click', async () => {
+        if (deferredPrompt) {
+          deferredPrompt.prompt();
+          await deferredPrompt.userChoice;
+          deferredPrompt = null;
+        } else {
+          showToast('В меню браузера выбери «На экран „Домой“»');
+        }
+      });
+
+      window.addEventListener('deviceorientation', (e) => {
+        let heading = null;
+        if (typeof e.webkitCompassHeading === 'number') {
+          heading = Math.round(e.webkitCompassHeading);
+        } else if (typeof e.alpha === 'number') {
+          heading = Math.round((360 - e.alpha) % 360);
+        }
+        if (heading !== null) {
+          document.getElementById('azimuthSlider').value = heading;
+          updateCompassHint();
+        }
+      });
+
+      window.addEventListener('online', updateNetStatus);
+      window.addEventListener('offline', updateNetStatus);
+    }
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      });
+    }
+
+    updateNetStatus();
+    updateHeaderAndPassport();
+    initMap();
+    populateSelectors();
+    setupEvents();
+  </script>
+</body>
+</html>
